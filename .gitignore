@@ -1,0 +1,43 @@
+# Server (Spring Boot)
+server/target/
+server/.mvn/
+server/*.jar
+server/*.war
+server/*.log
+
+# Client (React)
+client/node_modules/
+client/dist/
+client/build/
+client/.cache/
+client/*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+*.class
+*.jar
+*.war
+
+docs/

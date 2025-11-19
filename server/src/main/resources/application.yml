@@ -1,0 +1,107 @@
+spring:
+  application:
+    name: code-migration
+
+server:
+  port: 8080
+
+# Logging
+logging:
+  level:
+    com.htpt.migration: DEBUG
+    org.springframework.web.socket: INFO
+
+---
+# Profile: coordinator
+spring:
+  config:
+    activate:
+      on-profile: coordinator
+
+server:
+  port: 8080
+
+---
+# Profile: worker (generic for Docker)
+spring:
+  config:
+    activate:
+      on-profile: worker
+
+server:
+  port: 8080
+
+---
+# Profile: node1
+spring:
+  config:
+    activate:
+      on-profile: node1
+
+server:
+  port: 8081
+
+node:
+  id: node-1
+  host: localhost
+  role: WORKER
+
+---
+# Profile: node2
+spring:
+  config:
+    activate:
+      on-profile: node2
+
+server:
+  port: 8082
+
+node:
+  id: node-2
+  host: localhost
+  role: WORKER
+
+---
+# Profile: node3
+spring:
+  config:
+    activate:
+      on-profile: node3
+
+server:
+  port: 8083
+
+node:
+  id: node-3
+  host: localhost
+  role: WORKER
+
+---
+# Profile: node4
+spring:
+  config:
+    activate:
+      on-profile: node4
+
+server:
+  port: 8084
+
+node:
+  id: node-4
+  host: localhost
+  role: WORKER
+
+---
+# Profile: node5
+spring:
+  config:
+    activate:
+      on-profile: node5
+
+server:
+  port: 8085
+
+node:
+  id: node-5
+  host: localhost
+  role: WORKER
