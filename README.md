@@ -8,7 +8,6 @@ Demo mo phong di tru ma trong he thong phan tan voi 5 nodes.
 HTPT/
 ├── server/          # Backend - Spring Boot
 ├── client/          # Frontend - React
-├── docs/            # Tai lieu thiet ke
 └── README.md
 ```
 
@@ -97,13 +96,6 @@ node:
   coordinator-url: http://192.168.1.101:8080
 ```
 
-## Thanh vien nhom
-
-1. Thanh vien 1: Migration Coordinator
-2. Thanh vien 2: Node Agent & Executor
-3. Thanh vien 3: Communication Layer
-4. Thanh vien 4: Frontend Dashboard
-5. Thanh vien 5: State Management & Demo
 
 ## License
 
