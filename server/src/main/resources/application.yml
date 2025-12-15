@@ -55,5 +55,4 @@ node:
     mode: worker
     id: ${NODE_ID:worker-1}
     host: ${NODE_HOST:localhost}
-    port: ${SERVER_PORT:8081}
     coordinator-url: ${COORDINATOR_URL:http://localhost:8080}

@@ -2,14 +2,17 @@ package com.htpt.migration.service;
 
 import com.htpt.migration.model.Node;
 import com.htpt.migration.model.NodeMetrics;
+import com.sun.management.OperatingSystemMXBean;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
-import java.lang.management.OperatingSystemMXBean;
+import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Type;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +48,7 @@ public class WorkerNodeService {
     @Value("${node.host:localhost}")
     private String nodeHost;
 
-    @Value("${node.port:${server.port:8081}}")
+    @Value("${server.port:8081}")
     private int nodePort;
 
     @Value("${node.coordinator-url:http://localhost:8080}")
@@ -53,24 +56,72 @@ public class WorkerNodeService {
 
     private final CodeExecutorService codeExecutorService;
     private StompSession stompSession;
-    private final Random random = new Random();
     private volatile boolean running = true;
+    private String detectedIp;
 
-    // System metrics
+    // System metrics beans
     private final OperatingSystemMXBean osBean =
-        ManagementFactory.getOperatingSystemMXBean();
+        (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
     private final MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
+    private final RuntimeMXBean runtimeBean =
+        ManagementFactory.getRuntimeMXBean();
 
     @PostConstruct
     public void init() {
+        // Auto-detect IP if not configured or is localhost
+        detectedIp = detectRealIp();
+        if ("localhost".equals(nodeHost) || "127.0.0.1".equals(nodeHost)) {
+            nodeHost = detectedIp;
+        }
+
         log.info("===========================================");
         log.info("WORKER NODE STARTING");
         log.info("  Node ID: {}", nodeId);
         log.info("  Host: {}", nodeHost);
+        log.info("  Detected IP: {}", detectedIp);
         log.info("  Port: {}", nodePort);
         log.info("  Coordinator: {}", coordinatorUrl);
         log.info("===========================================");
         connectToCoordinator();
+    }
+
+    /**
+     * Detect real IP address (prefer LAN IP over localhost)
+     */
+    private String detectRealIp() {
+        try {
+            // Try to find a non-loopback, non-virtual network interface
+            Enumeration<NetworkInterface> interfaces =
+                NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                // Skip loopback and down interfaces
+                if (iface.isLoopback() || !iface.isUp()) continue;
+                // Skip virtual interfaces (docker, vmware, etc.)
+                String name = iface.getName().toLowerCase();
+                if (
+                    name.contains("docker") ||
+                    name.contains("veth") ||
+                    name.contains("vmnet") ||
+                    name.contains("vbox")
+                ) continue;
+
+                Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    // Prefer IPv4 addresses
+                    if (addr.getHostAddress().contains(":")) continue; // Skip IPv6
+                    if (!addr.isLoopbackAddress()) {
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+            // Fallback to localhost
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (Exception e) {
+            log.warn("Failed to detect IP: {}", e.getMessage());
+            return "localhost";
+        }
     }
 
     @PreDestroy
@@ -237,18 +288,27 @@ public class WorkerNodeService {
     @Scheduled(fixedRate = 3000)
     public void sendMetrics() {
         if (stompSession != null && stompSession.isConnected()) {
-            // Lấy CPU usage thực
-            double cpuLoad = osBean.getSystemLoadAverage();
-            double cpuUsage = cpuLoad >= 0
-                ? Math.min(cpuLoad * 10, 100)
-                : 20 + random.nextDouble() * 30;
+            // Lấy CPU usage thực (% CPU của process)
+            // getCpuLoad() trả về giá trị 0.0 - 1.0 (hoặc -1 nếu không available)
+            double cpuLoad = osBean.getCpuLoad();
+            double cpuUsage;
+            if (cpuLoad >= 0) {
+                cpuUsage = cpuLoad * 100; // Convert to percentage
+            } else {
+                // Fallback: dùng process CPU load
+                double processCpu = osBean.getProcessCpuLoad();
+                cpuUsage = processCpu >= 0 ? processCpu * 100 : 0;
+            }
 
-            // Lấy Memory usage thực
+            // Lấy Memory usage thực của JVM
             long maxMemory = Runtime.getRuntime().maxMemory();
             long usedMemory =
                 Runtime.getRuntime().totalMemory() -
                 Runtime.getRuntime().freeMemory();
             double memoryUsage = ((double) usedMemory / maxMemory) * 100;
+
+            // Lấy uptime thực (thời gian JVM đã chạy, tính bằng giây)
+            long uptimeSeconds = runtimeBean.getUptime() / 1000;
 
             stompSession.send(
                 "/app/node/metrics",
@@ -256,13 +316,13 @@ public class WorkerNodeService {
                     "nodeId",
                     nodeId,
                     "cpu",
-                    cpuUsage,
+                    Math.round(cpuUsage * 100.0) / 100.0, // Round to 2 decimals
                     "memory",
-                    memoryUsage,
+                    Math.round(memoryUsage * 100.0) / 100.0,
                     "processes",
                     Thread.activeCount(),
                     "uptime",
-                    System.currentTimeMillis()
+                    uptimeSeconds
                 )
             );
         }

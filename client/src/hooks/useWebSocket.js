@@ -77,7 +77,6 @@ export function useWebSocket() {
                         },
                     );
                 });
-
                 // Request initial topology
                 client.publish({
                     destination: "/app/node/register",
@@ -87,6 +86,9 @@ export function useWebSocket() {
                         port: 3000,
                     }),
                 });
+
+                // Request initial topology (just subscribe, don't register as node)
+                addLog("Subscribed to cluster updates", "info");
             },
 
             onDisconnect: () => {
