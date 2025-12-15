@@ -72,6 +72,34 @@ public class WorkerNodeService {
     private final RuntimeMXBean runtimeBean =
         ManagementFactory.getRuntimeMXBean();
 
+    /**
+     * Thread-safe WebSocket message sender
+     * Prevents race conditions when multiple threads send messages concurrently
+     *
+     * @param destination The STOMP destination (e.g., "/app/node/metrics")
+     * @param payload The message payload
+     */
+    private synchronized void safeSend(String destination, Object payload) {
+        if (stompSession == null || !stompSession.isConnected()) {
+            log.warn(
+                "Cannot send message to {} - session not connected",
+                destination
+            );
+            return;
+        }
+
+        try {
+            stompSession.send(destination, payload);
+        } catch (Exception e) {
+            log.error(
+                "Failed to send message to {}: {}",
+                destination,
+                e.getMessage()
+            );
+            // Don't rethrow - let the caller continue gracefully
+        }
+    }
+
     @PostConstruct
     public void init() {
         // Auto-detect IP if not configured or is localhost
@@ -134,15 +162,8 @@ public class WorkerNodeService {
     public void shutdown() {
         running = false;
         if (stompSession != null && stompSession.isConnected()) {
-            try {
-                stompSession.send(
-                    "/app/node/unregister",
-                    Map.of("nodeId", nodeId)
-                );
-                log.info("Node {} unregistered from coordinator", nodeId);
-            } catch (Exception e) {
-                log.warn("Failed to unregister node: {}", e.getMessage());
-            }
+            safeSend("/app/node/unregister", Map.of("nodeId", nodeId));
+            log.info("Node {} unregistered from coordinator", nodeId);
         }
     }
 
@@ -155,8 +176,12 @@ public class WorkerNodeService {
                 new MappingJackson2MessageConverter()
             );
 
+            // Hỗ trợ cả HTTP và HTTPS (ngrok, cloudflare tunnel)
             String wsUrl =
-                coordinatorUrl.replace("http://", "ws://") + "/ws/websocket";
+                coordinatorUrl
+                    .replace("https://", "wss://")
+                    .replace("http://", "ws://") +
+                "/ws/websocket";
             log.info("Connecting to coordinator: {}", wsUrl);
 
             stompSession = stompClient
@@ -223,7 +248,7 @@ public class WorkerNodeService {
 
     private void registerNode() {
         if (stompSession != null && stompSession.isConnected()) {
-            stompSession.send(
+            safeSend(
                 "/app/node/register",
                 Map.of("id", nodeId, "host", nodeHost, "port", nodePort)
             );
@@ -679,33 +704,33 @@ public class WorkerNodeService {
                         "╠──────────────────────────────────────────────────────────────╣"
                     );
 
-                    if (realState != null) {
+                    if (
+                        realState != null &&
+                        realState.getVariables() != null &&
+                        !realState.getVariables().isEmpty()
+                    ) {
                         log.info(
                             "║   Execution Point: {}",
                             realState.getExecutionPoint()
                         );
-                        log.info("║   Variables:");
-                        if (
-                            realState.getVariables() != null &&
-                            !realState.getVariables().isEmpty()
-                        ) {
-                            for (Map.Entry<String, Object> entry : realState
-                                .getVariables()
-                                .entrySet()) {
-                                log.info(
-                                    "║     - {} = {} ({})",
-                                    entry.getKey(),
-                                    entry.getValue(),
-                                    entry.getValue() != null
-                                        ? entry
-                                              .getValue()
-                                              .getClass()
-                                              .getSimpleName()
-                                        : "null"
-                                );
-                            }
-                        } else {
-                            log.info("║     (no variables)");
+                        log.info(
+                            "║   Variables ({} total):",
+                            realState.getVariables().size()
+                        );
+                        for (Map.Entry<String, Object> entry : realState
+                            .getVariables()
+                            .entrySet()) {
+                            log.info(
+                                "║     - {} = {} ({})",
+                                entry.getKey(),
+                                entry.getValue(),
+                                entry.getValue() != null
+                                    ? entry
+                                          .getValue()
+                                          .getClass()
+                                          .getSimpleName()
+                                    : "null"
+                            );
                         }
                         log.info(
                             "║   Console Output: {}",
@@ -720,7 +745,17 @@ public class WorkerNodeService {
                         // Gửi state thực về Coordinator
                         sendCapturedState(codeId, realState);
                     } else {
-                        log.warn("║   [WARNING] No execution context found!");
+                        log.warn(
+                            "║   [WARNING] No execution context found for codeId: {}",
+                            codeId
+                        );
+                        log.warn(
+                            "║   Available contexts: {}",
+                            codeExecutorService.getAvailableContextIds()
+                        );
+                        log.warn(
+                            "║   Hint: Code must be executed before migration to capture state"
+                        );
                         log.warn("║   Sending empty state...");
                         log.info(
                             "╚══════════════════════════════════════════════════════════════╝"
@@ -812,28 +847,24 @@ public class WorkerNodeService {
      * Gửi state đã capture về Coordinator
      */
     private void sendCapturedState(String codeId, CodePackage.CodeState state) {
-        if (stompSession != null && stompSession.isConnected()) {
-            stompSession.send(
-                "/app/node/state-captured",
-                Map.of(
-                    "nodeId",
-                    nodeId,
-                    "codeId",
-                    codeId,
-                    "variables",
-                    state.getVariables() != null
-                        ? state.getVariables()
-                        : Map.of(),
-                    "executionPoint",
-                    state.getExecutionPoint(),
-                    "output",
-                    state.getOutput() != null ? state.getOutput() : "",
-                    "timestamp",
-                    System.currentTimeMillis()
-                )
-            );
-            log.info("Captured state sent to coordinator");
-        }
+        safeSend(
+            "/app/node/state-captured",
+            Map.of(
+                "nodeId",
+                nodeId,
+                "codeId",
+                codeId,
+                "variables",
+                state.getVariables() != null ? state.getVariables() : Map.of(),
+                "executionPoint",
+                state.getExecutionPoint(),
+                "output",
+                state.getOutput() != null ? state.getOutput() : "",
+                "timestamp",
+                System.currentTimeMillis()
+            )
+        );
+        log.info("Captured state sent to coordinator");
     }
 
     /**
@@ -845,28 +876,26 @@ public class WorkerNodeService {
         String error,
         String consoleOutput
     ) {
-        if (stompSession != null && stompSession.isConnected()) {
-            stompSession.send(
-                "/app/node/execution-complete",
-                Map.of(
-                    "nodeId",
-                    nodeId,
-                    "codeId",
-                    codeId,
-                    "result",
-                    result != null ? result : "",
-                    "error",
-                    error != null ? error : "",
-                    "consoleOutput",
-                    consoleOutput != null ? consoleOutput : "",
-                    "status",
-                    error == null ? "completed" : "error",
-                    "timestamp",
-                    System.currentTimeMillis()
-                )
-            );
-            log.info("Execution result sent to coordinator");
-        }
+        safeSend(
+            "/app/node/execution-complete",
+            Map.of(
+                "nodeId",
+                nodeId,
+                "codeId",
+                codeId,
+                "result",
+                result != null ? result : "",
+                "error",
+                error != null ? error : "",
+                "consoleOutput",
+                consoleOutput != null ? consoleOutput : "",
+                "status",
+                error == null ? "completed" : "error",
+                "timestamp",
+                System.currentTimeMillis()
+            )
+        );
+        log.info("Execution result sent to coordinator");
     }
 
     // Gửi metrics mỗi 3 giây - sử dụng metrics thực từ hệ thống
@@ -895,7 +924,7 @@ public class WorkerNodeService {
             // Lấy uptime thực (thời gian JVM đã chạy, tính bằng giây)
             long uptimeSeconds = runtimeBean.getUptime() / 1000;
 
-            stompSession.send(
+            safeSend(
                 "/app/node/metrics",
                 Map.of(
                     "nodeId",
@@ -917,7 +946,7 @@ public class WorkerNodeService {
     @Scheduled(fixedRate = 10000)
     public void sendHeartbeat() {
         if (stompSession != null && stompSession.isConnected()) {
-            stompSession.send("/app/node/heartbeat", Map.of("nodeId", nodeId));
+            safeSend("/app/node/heartbeat", Map.of("nodeId", nodeId));
         }
     }
 }

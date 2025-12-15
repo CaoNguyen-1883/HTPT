@@ -215,6 +215,11 @@ public class CodeExecutorService {
         );
     }
 
+    // Lấy danh sách codeId có context (để debug)
+    public Set<String> getAvailableContextIds() {
+        return contexts.keySet();
+    }
+
     // Lấy state hiện tại
     public CodePackage.CodeState getState(String codeId) {
         ExecutionContext context = contexts.get(codeId);
