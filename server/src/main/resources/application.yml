@@ -1,11 +1,16 @@
+# ============================================================
+# CODE MIGRATION SYSTEM - Configuration
+# ============================================================
+# Chạy với profile:
+#   Coordinator: --spring.profiles.active=coordinator
+#   Worker:      --spring.profiles.active=worker
+# ============================================================
+
 spring:
     application:
-        name: code-migration
+        name: code-migration-system
 
-server:
-    port: ${SERVER_PORT:8080}
-
-# Logging
+# Logging mặc định
 logging:
     level:
         com.htpt.migration: DEBUG
@@ -13,8 +18,8 @@ logging:
 
 
 # ============================================================
-# COORDINATOR MODE (Default)
-# Chạy trên laptop chính - quản lý toàn bộ cluster
+# COORDINATOR PROFILE
+# Điều phối cluster, quản lý nodes, cung cấp API & WebSocket
 # ============================================================
 ---
 spring:
@@ -23,17 +28,19 @@ spring:
             on-profile: coordinator
 
 server:
-    port: ${SERVER_PORT:8080}
+    port: 8080
 
 node:
     mode: coordinator
-    # Số lượng demo nodes (chỉ dùng khi không có worker thực)
-    demo-nodes: ${DEMO_NODES:0}
+
+logging:
+    level:
+        com.htpt.migration: INFO
 
 
 # ============================================================
-# WORKER MODE
-# Chạy trên các laptop worker - kết nối đến coordinator
+# WORKER PROFILE
+# Kết nối đến Coordinator, thực thi code, gửi metrics
 # ============================================================
 ---
 spring:
@@ -46,28 +53,7 @@ server:
 
 node:
     mode: worker
-    # ID của node này (bắt buộc, phải unique)
     id: ${NODE_ID:worker-1}
-    # IP của laptop này (để coordinator biết địa chỉ)
     host: ${NODE_HOST:localhost}
-    # Port của laptop này
     port: ${SERVER_PORT:8081}
-    # URL của Coordinator (IP:Port của laptop chạy coordinator)
     coordinator-url: ${COORDINATOR_URL:http://localhost:8080}
-
-
-# ============================================================
-# DEMO MODE - Chạy tất cả trên 1 máy với simulated nodes
-# ============================================================
----
-spring:
-    config:
-        activate:
-            on-profile: demo
-
-server:
-    port: 8080
-
-node:
-    mode: coordinator
-    demo-nodes: 5

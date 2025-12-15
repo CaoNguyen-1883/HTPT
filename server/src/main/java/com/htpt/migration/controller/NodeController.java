@@ -2,15 +2,16 @@ package com.htpt.migration.controller;
 
 import com.htpt.migration.model.Node;
 import com.htpt.migration.service.CoordinatorService;
+import java.util.Collection;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/nodes")
+@Profile({ "coordinator", "demo" })
 @RequiredArgsConstructor
 public class NodeController {
 

@@ -139,26 +139,28 @@ public class WorkerNodeService {
                                 "Transport error: {}",
                                 exception.getMessage()
                             );
-                            // Retry connection after 5 seconds
-                            try {
-                                Thread.sleep(5000);
-                                connectToCoordinator();
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                            }
+                            retryConnection();
                         }
                     }
                 )
                 .get();
         } catch (InterruptedException | ExecutionException e) {
             log.error("Failed to connect to coordinator: {}", e.getMessage());
-            // Retry connection after 5 seconds
-            try {
-                Thread.sleep(5000);
+            retryConnection();
+        }
+    }
+
+    private void retryConnection() {
+        if (!running) return;
+
+        log.info("Retrying connection in 5 seconds...");
+        try {
+            Thread.sleep(5000);
+            if (running) {
                 connectToCoordinator();
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

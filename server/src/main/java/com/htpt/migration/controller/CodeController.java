@@ -3,14 +3,15 @@ package com.htpt.migration.controller;
 import com.htpt.migration.dto.CodeDTO;
 import com.htpt.migration.model.CodePackage;
 import com.htpt.migration.service.MigrationService;
+import java.util.Collection;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
-
 @RestController
 @RequestMapping("/api/code")
+@Profile({ "coordinator", "demo" })
 @RequiredArgsConstructor
 public class CodeController {
 

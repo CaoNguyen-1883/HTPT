@@ -3,17 +3,18 @@ package com.htpt.migration.websocket;
 import com.htpt.migration.model.Node;
 import com.htpt.migration.model.NodeMetrics;
 import com.htpt.migration.service.CoordinatorService;
+import java.time.Instant;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
-import java.time.Instant;
-import java.util.Map;
-
 @Controller
+@Profile({ "coordinator", "demo" })
 @Slf4j
 @RequiredArgsConstructor
 public class WebSocketHandler {
@@ -37,19 +38,30 @@ public class WebSocketHandler {
             .role(Node.NodeRole.WORKER)
             .status(Node.NodeStatus.ONLINE)
             .connectedAt(Instant.now())
-            .metrics(NodeMetrics.builder()
-                .cpuUsage(Math.random() * 30)  // Random initial value
-                .memoryUsage(Math.random() * 40)
-                .activeProcesses(0)
-                .uptime(0)
-                .build())
+            .metrics(
+                NodeMetrics.builder()
+                    .cpuUsage(Math.random() * 30) // Random initial value
+                    .memoryUsage(Math.random() * 40)
+                    .activeProcesses(0)
+                    .uptime(0)
+                    .build()
+            )
             .build();
 
         coordinatorService.registerNode(node);
 
         // Send acknowledgment
-        messagingTemplate.convertAndSend("/topic/node/" + nodeId + "/registered",
-            Map.of("status", "ok", "nodeId", nodeId, "timestamp", System.currentTimeMillis()));
+        messagingTemplate.convertAndSend(
+            "/topic/node/" + nodeId + "/registered",
+            Map.of(
+                "status",
+                "ok",
+                "nodeId",
+                nodeId,
+                "timestamp",
+                System.currentTimeMillis()
+            )
+        );
 
         log.info("Node {} registered via WebSocket", nodeId);
     }
@@ -75,8 +87,12 @@ public class WebSocketHandler {
             .build();
 
         coordinatorService.updateMetrics(nodeId, metrics);
-        log.debug("Metrics updated for node {}: CPU={}%, MEM={}%",
-            nodeId, metrics.getCpuUsage(), metrics.getMemoryUsage());
+        log.debug(
+            "Metrics updated for node {}: CPU={}%, MEM={}%",
+            nodeId,
+            metrics.getCpuUsage(),
+            metrics.getMemoryUsage()
+        );
     }
 
     // Heartbeat
@@ -90,8 +106,10 @@ public class WebSocketHandler {
         }
 
         // Send pong
-        messagingTemplate.convertAndSend("/topic/node/" + nodeId + "/pong",
-            Map.of("timestamp", System.currentTimeMillis()));
+        messagingTemplate.convertAndSend(
+            "/topic/node/" + nodeId + "/pong",
+            Map.of("timestamp", System.currentTimeMillis())
+        );
     }
 
     // Code execution completed
@@ -101,17 +119,29 @@ public class WebSocketHandler {
         String codeId = (String) payload.get("codeId");
         String result = (String) payload.get("result");
 
-        log.info("Execution completed on node {}: code={}, result={}", nodeId, codeId, result);
+        log.info(
+            "Execution completed on node {}: code={}, result={}",
+            nodeId,
+            codeId,
+            result
+        );
 
         // Broadcast to clients
-        messagingTemplate.convertAndSend("/topic/execution/" + codeId,
+        messagingTemplate.convertAndSend(
+            "/topic/execution/" + codeId,
             Map.of(
-                "nodeId", nodeId,
-                "codeId", codeId,
-                "result", result,
-                "status", "completed",
-                "timestamp", System.currentTimeMillis()
-            ));
+                "nodeId",
+                nodeId,
+                "codeId",
+                codeId,
+                "result",
+                result,
+                "status",
+                "completed",
+                "timestamp",
+                System.currentTimeMillis()
+            )
+        );
     }
 
     // Migration acknowledgment from node
@@ -121,6 +151,11 @@ public class WebSocketHandler {
         String migrationId = (String) payload.get("migrationId");
         String status = (String) payload.get("status");
 
-        log.info("Migration {} acknowledged by node {}: {}", migrationId, nodeId, status);
+        log.info(
+            "Migration {} acknowledged by node {}: {}",
+            migrationId,
+            nodeId,
+            status
+        );
     }
 }

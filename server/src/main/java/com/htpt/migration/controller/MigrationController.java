@@ -3,22 +3,25 @@ package com.htpt.migration.controller;
 import com.htpt.migration.dto.MigrationRequest;
 import com.htpt.migration.model.Migration;
 import com.htpt.migration.service.MigrationService;
+import java.util.Collection;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/migrations")
+@Profile({ "coordinator", "demo" })
 @RequiredArgsConstructor
 public class MigrationController {
 
     private final MigrationService migrationService;
 
     @PostMapping
-    public ResponseEntity<Migration> initiateMigration(@RequestBody MigrationRequest request) {
+    public ResponseEntity<Migration> initiateMigration(
+        @RequestBody MigrationRequest request
+    ) {
         Migration migration = migrationService.initiateMigration(request);
         return ResponseEntity.ok(migration);
     }
