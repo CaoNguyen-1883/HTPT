@@ -3,6 +3,7 @@ package com.htpt.migration.websocket;
 import com.htpt.migration.model.Node;
 import com.htpt.migration.model.NodeMetrics;
 import com.htpt.migration.service.CoordinatorService;
+import com.htpt.migration.service.LogBroadcastService;
 import java.time.Instant;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class WebSocketHandler {
 
     private final CoordinatorService coordinatorService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final LogBroadcastService logService;
 
     // Node đăng ký
     @MessageMapping("/node/register")
@@ -112,19 +114,45 @@ public class WebSocketHandler {
         );
     }
 
-    // Code execution completed
+    // Code execution completed - nhận kết quả thực từ Worker
     @MessageMapping("/node/execution-complete")
     public void executionComplete(@Payload Map<String, Object> payload) {
         String nodeId = (String) payload.get("nodeId");
         String codeId = (String) payload.get("codeId");
         String result = (String) payload.get("result");
+        String error = (String) payload.get("error");
+        String consoleOutput = (String) payload.get("consoleOutput");
+        String status = (String) payload.get("status");
 
-        log.info(
-            "Execution completed on node {}: code={}, result={}",
-            nodeId,
-            codeId,
-            result
-        );
+        log.info("=== REAL EXECUTION RESULT FROM {} ===", nodeId);
+        log.info("  Code ID: {}", codeId);
+        log.info("  Status: {}", status);
+        log.info("  Result: {}", result);
+        if (consoleOutput != null && !consoleOutput.isEmpty()) {
+            log.info("  Console Output:\n{}", consoleOutput);
+        }
+        if (error != null && !error.isEmpty()) {
+            log.error("  Error: {}", error);
+        }
+        log.info("=====================================");
+
+        // Log console output to frontend
+        if (consoleOutput != null && !consoleOutput.isEmpty()) {
+            // Split by newlines and log each line
+            String[] lines = consoleOutput.split("\n");
+            for (String line : lines) {
+                if (!line.trim().isEmpty()) {
+                    logService.info(nodeId, "CONSOLE", line.trim());
+                }
+            }
+        }
+
+        // Log execution result
+        if ("error".equals(status) && error != null && !error.isEmpty()) {
+            logService.error(nodeId, "EXEC_ERROR", error);
+        } else {
+            logService.success(nodeId, "EXEC_RESULT", "Return: " + result);
+        }
 
         // Broadcast to clients
         messagingTemplate.convertAndSend(
@@ -135,9 +163,13 @@ public class WebSocketHandler {
                 "codeId",
                 codeId,
                 "result",
-                result,
+                result != null ? result : "",
+                "consoleOutput",
+                consoleOutput != null ? consoleOutput : "",
+                "error",
+                error != null ? error : "",
                 "status",
-                "completed",
+                status,
                 "timestamp",
                 System.currentTimeMillis()
             )
@@ -156,6 +188,58 @@ public class WebSocketHandler {
             migrationId,
             nodeId,
             status
+        );
+    }
+
+    // State captured from worker - nhận state thực từ Worker source
+    @MessageMapping("/node/state-captured")
+    @SuppressWarnings("unchecked")
+    public void stateCaptured(@Payload Map<String, Object> payload) {
+        String nodeId = (String) payload.get("nodeId");
+        String codeId = (String) payload.get("codeId");
+        Map<String, Object> variables = (Map<String, Object>) payload.get(
+            "variables"
+        );
+        int executionPoint = ((Number) payload.getOrDefault(
+                "executionPoint",
+                0
+            )).intValue();
+        String output = (String) payload.get("output");
+
+        log.info("=== REAL STATE CAPTURED FROM {} ===", nodeId);
+        log.info("  Code ID: {}", codeId);
+        log.info("  Variables: {}", variables);
+        log.info("  Execution Point: {}", executionPoint);
+        log.info("  Output: {}", output);
+        log.info("===================================");
+
+        // Log to frontend
+        logService.success(
+            nodeId,
+            "STATE_CAPTURED",
+            String.format(
+                "Captured %d variables",
+                variables != null ? variables.size() : 0
+            )
+        );
+
+        // Broadcast để MigrationService có thể nhận và sử dụng
+        messagingTemplate.convertAndSend(
+            "/topic/state/" + codeId,
+            Map.of(
+                "nodeId",
+                nodeId,
+                "codeId",
+                codeId,
+                "variables",
+                variables != null ? variables : Map.of(),
+                "executionPoint",
+                executionPoint,
+                "output",
+                output != null ? output : "",
+                "timestamp",
+                System.currentTimeMillis()
+            )
         );
     }
 }

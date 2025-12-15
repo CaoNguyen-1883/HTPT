@@ -29,6 +29,10 @@ public class MigrationService {
     private final Map<String, CodePackage> codePackages =
         new ConcurrentHashMap<>();
 
+    // Lưu state được capture từ worker (để sử dụng trong Strong migration)
+    private final Map<String, CodePackage.CodeState> capturedStates =
+        new ConcurrentHashMap<>();
+
     // Khởi tạo di trú
     public Migration initiateMigration(MigrationRequest request) {
         String migrationId = UUID.randomUUID().toString().substring(0, 8);
@@ -129,38 +133,19 @@ public class MigrationService {
                 )
             );
 
-            // Step 2: Nếu strong mobility, lấy state
+            // Step 2: Nếu strong mobility, yêu cầu Worker capture state thực
             if (migration.getType() == Migration.MigrationType.STRONG) {
-                updateProgress(migration, 40, "Capturing execution state");
-
-                // Capture state với data thực tế hơn
-                Map<String, Object> stateVars = Map.of(
-                    "counter",
-                    10,
-                    "data",
-                    Arrays.asList(
-                        Map.of(
-                            "node",
-                            migration.getSourceNodeId(),
-                            "value",
-                            42.5
-                        ),
-                        Map.of("node", "previous", "value", 38.2)
-                    ),
-                    "timestamp",
-                    System.currentTimeMillis()
+                updateProgress(
+                    migration,
+                    40,
+                    "Capturing execution state from worker"
                 );
 
-                CodePackage.CodeState state = CodePackage.CodeState.builder()
-                    .variables(stateVars)
-                    .executionPoint(15)
-                    .output("Captured at " + Instant.now())
-                    .build();
-                codePackage.setState(state);
-
-                logService.logStateCheckpoint(
+                // Gửi lệnh capture state đến Worker source
+                logService.info(
                     migration.getSourceNodeId(),
-                    stateVars
+                    "STATE",
+                    "Requesting state capture from worker..."
                 );
 
                 messagingTemplate.convertAndSend(
@@ -169,6 +154,32 @@ public class MigrationService {
                         "/capture-state",
                     Map.of("codeId", migration.getCodeId())
                 );
+
+                // Chờ state từ Worker (tối đa 5 giây)
+                CodePackage.CodeState capturedState = null;
+                for (int i = 0; i < 10; i++) {
+                    Thread.sleep(500);
+                    capturedState = capturedStates.get(migration.getCodeId());
+                    if (capturedState != null) {
+                        break;
+                    }
+                }
+
+                if (capturedState != null) {
+                    codePackage.setState(capturedState);
+                    logService.logStateCheckpoint(
+                        migration.getSourceNodeId(),
+                        capturedState.getVariables()
+                    );
+                    // Xóa khỏi map sau khi sử dụng
+                    capturedStates.remove(migration.getCodeId());
+                } else {
+                    logService.warning(
+                        migration.getSourceNodeId(),
+                        "STATE",
+                        "No state received from worker, continuing with empty state"
+                    );
+                }
             } else {
                 updateProgress(
                     migration,
@@ -218,27 +229,19 @@ public class MigrationService {
                 codePackage.getId()
             );
 
+            // Gửi lệnh execute đến Worker - Worker sẽ thực sự chạy code
+            // và gửi kết quả về qua /app/node/execution-complete
             messagingTemplate.convertAndSend(
                 "/topic/node/" + migration.getTargetNodeId() + "/execute",
                 Map.of("codeId", codePackage.getId())
             );
 
-            // Log execution result
-            Object result = Map.of(
-                "status",
-                "success",
-                "node",
+            // Không fake result nữa - kết quả thực sẽ được Worker gửi về
+            // và WebSocketHandler sẽ broadcast ra frontend
+            logService.info(
                 migration.getTargetNodeId(),
-                "output",
-                String.format(
-                    "%s() executed successfully",
-                    codePackage.getEntryPoint()
-                )
-            );
-            logService.logExecutionOutput(
-                migration.getTargetNodeId(),
-                codePackage.getId(),
-                result
+                "WAITING",
+                "Waiting for execution result from worker..."
             );
 
             // Complete
@@ -368,5 +371,17 @@ public class MigrationService {
 
     public Collection<CodePackage> getAllCodePackages() {
         return codePackages.values();
+    }
+
+    /**
+     * Lưu state được capture từ Worker (gọi từ WebSocketHandler)
+     */
+    public void saveCapturedState(String codeId, CodePackage.CodeState state) {
+        capturedStates.put(codeId, state);
+        log.info(
+            "State saved for code {}: {} variables",
+            codeId,
+            state.getVariables() != null ? state.getVariables().size() : 0
+        );
     }
 }
