@@ -1,83 +1,93 @@
-import { create } from 'zustand'
+import { create } from "zustand";
 
 const useStore = create((set, get) => ({
-  // State
-  nodes: [],
-  migrations: [],
-  codePackages: [],
-  logs: [],
-  connected: false,
-  demoStatus: null,
-  executionResults: [],
+    // State
+    nodes: [],
+    migrations: [],
+    codePackages: [],
+    logs: [],
+    connected: false,
 
-  // Actions
-  setConnected: (connected) => set({ connected }),
+    executionResults: [],
 
-  setNodes: (nodes) => set({ nodes }),
+    // Actions
+    setConnected: (connected) => set({ connected }),
 
-  addNode: (node) => set((state) => ({
-    nodes: [...state.nodes.filter(n => n.id !== node.id), node]
-  })),
+    setNodes: (nodes) => set({ nodes }),
 
-  removeNode: (nodeId) => set((state) => ({
-    nodes: state.nodes.filter(n => n.id !== nodeId)
-  })),
+    addNode: (node) =>
+        set((state) => ({
+            nodes: [...state.nodes.filter((n) => n.id !== node.id), node],
+        })),
 
-  updateNodeMetrics: (nodeId, metrics) => set((state) => ({
-    nodes: state.nodes.map(n =>
-      n.id === nodeId ? { ...n, metrics } : n
-    )
-  })),
+    removeNode: (nodeId) =>
+        set((state) => ({
+            nodes: state.nodes.filter((n) => n.id !== nodeId),
+        })),
 
-  updateNodeStatus: (nodeId, status) => set((state) => ({
-    nodes: state.nodes.map(n =>
-      n.id === nodeId ? { ...n, status } : n
-    )
-  })),
+    updateNodeMetrics: (nodeId, metrics) =>
+        set((state) => ({
+            nodes: state.nodes.map((n) =>
+                n.id === nodeId ? { ...n, metrics } : n,
+            ),
+        })),
 
-  addMigration: (migration) => set((state) => ({
-    migrations: [...state.migrations, migration]
-  })),
+    updateNodeStatus: (nodeId, status) =>
+        set((state) => ({
+            nodes: state.nodes.map((n) =>
+                n.id === nodeId ? { ...n, status } : n,
+            ),
+        })),
 
-  updateMigration: (migration) => set((state) => ({
-    migrations: state.migrations.map(m =>
-      m.id === migration.id ? migration : m
-    )
-  })),
+    addMigration: (migration) =>
+        set((state) => ({
+            migrations: [...state.migrations, migration],
+        })),
 
-  addCodePackage: (codePackage) => set((state) => ({
-    codePackages: [...state.codePackages, codePackage]
-  })),
+    updateMigration: (migration) =>
+        set((state) => ({
+            migrations: state.migrations.map((m) =>
+                m.id === migration.id ? migration : m,
+            ),
+        })),
 
-  addLog: (message, type = 'info', metadata = {}) => set((state) => ({
-    logs: [...state.logs, {
-      message,
-      type,
-      timestamp: Date.now(),
-      ...metadata
-    }].slice(-100) // Keep last 100 logs
-  })),
+    addCodePackage: (codePackage) =>
+        set((state) => ({
+            codePackages: [...state.codePackages, codePackage],
+        })),
 
-  clearLogs: () => set({ logs: [] }),
+    addLog: (message, type = "info", metadata = {}) =>
+        set((state) => ({
+            logs: [
+                ...state.logs,
+                {
+                    message,
+                    type,
+                    timestamp: Date.now(),
+                    ...metadata,
+                },
+            ].slice(-100), // Keep last 100 logs
+        })),
 
-  setDemoStatus: (status) => set({ demoStatus: status }),
+    clearLogs: () => set({ logs: [] }),
 
-  addExecutionResult: (result) => set((state) => ({
-    executionResults: [...state.executionResults, result].slice(-20)
-  })),
+    addExecutionResult: (result) =>
+        set((state) => ({
+            executionResults: [...state.executionResults, result].slice(-20),
+        })),
 
-  clearExecutionResults: () => set({ executionResults: [] }),
+    clearExecutionResults: () => set({ executionResults: [] }),
 
-  // Selectors
-  getActiveMigration: () => {
-    const state = get()
-    return state.migrations.find(m => m.status === 'IN_PROGRESS')
-  },
+    // Selectors
+    getActiveMigration: () => {
+        const state = get();
+        return state.migrations.find((m) => m.status === "IN_PROGRESS");
+    },
 
-  getNodeById: (nodeId) => {
-    const state = get()
-    return state.nodes.find(n => n.id === nodeId)
-  }
-}))
+    getNodeById: (nodeId) => {
+        const state = get();
+        return state.nodes.find((n) => n.id === nodeId);
+    },
+}));
 
-export default useStore
+export default useStore;

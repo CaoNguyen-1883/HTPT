@@ -41,3 +41,5 @@ logs/
 *.war
 
 docs/
+
+server_v2/
