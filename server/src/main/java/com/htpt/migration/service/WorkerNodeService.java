@@ -247,7 +247,6 @@ public class WorkerNodeService {
                 @SuppressWarnings("unchecked")
                 public void handleFrame(StompHeaders headers, Object payload) {
                     Map<String, Object> data = (Map<String, Object>) payload;
-                    log.info("=== RECEIVED CODE PACKAGE ===");
 
                     // Parse code package từ payload
                     String codeId = (String) data.get("id");
@@ -277,10 +276,6 @@ public class WorkerNodeService {
                             )
                             .output((String) stateData.get("output"))
                             .build();
-                        log.info(
-                            "  State received: {} variables",
-                            variables != null ? variables.size() : 0
-                        );
                     }
 
                     CodePackage codePackage = CodePackage.builder()
@@ -293,11 +288,86 @@ public class WorkerNodeService {
                         .build();
 
                     receivedCodePackages.put(codeId, codePackage);
-                    log.info("  Code ID: {}", codeId);
-                    log.info("  Name: {}", codeName);
-                    log.info("  Entry Point: {}", entryPoint);
-                    log.info("  Has State: {}", state != null);
-                    log.info("=============================");
+
+                    // ========== LOG CHI TIẾT CODE PACKAGE NHẬN ĐƯỢC ==========
+                    log.info(
+                        "╔══════════════════════════════════════════════════════════════╗"
+                    );
+                    log.info(
+                        "║          RECEIVED CODE PACKAGE FROM COORDINATOR              ║"
+                    );
+                    log.info(
+                        "╠══════════════════════════════════════════════════════════════╣"
+                    );
+                    log.info("║ Code ID    : {}", codeId);
+                    log.info("║ Code Name  : {}", codeName);
+                    log.info("║ Entry Point: {}", entryPoint);
+                    log.info("║ Target Node: {}", nodeId);
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    log.info("║ CODE CONTENT:");
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    String[] codeLines = code.split("\n");
+                    for (int i = 0; i < codeLines.length; i++) {
+                        log.info(
+                            "║ {} │ {}",
+                            String.format("%3d", i + 1),
+                            codeLines[i]
+                        );
+                    }
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    log.info("║ MIGRATED STATE:");
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    if (state != null) {
+                        log.info(
+                            "║   [STRONG MOBILITY - State transferred from source]"
+                        );
+                        log.info(
+                            "║   Execution Point: {}",
+                            state.getExecutionPoint()
+                        );
+                        log.info("║   Variables:");
+                        if (
+                            state.getVariables() != null &&
+                            !state.getVariables().isEmpty()
+                        ) {
+                            for (Map.Entry<String, Object> entry : state
+                                .getVariables()
+                                .entrySet()) {
+                                log.info(
+                                    "║     - {} = {} ({})",
+                                    entry.getKey(),
+                                    entry.getValue(),
+                                    entry.getValue() != null
+                                        ? entry
+                                              .getValue()
+                                              .getClass()
+                                              .getSimpleName()
+                                        : "null"
+                                );
+                            }
+                        } else {
+                            log.info("║     (no variables)");
+                        }
+                        log.info(
+                            "║   Previous Output: {}",
+                            state.getOutput() != null
+                                ? state.getOutput()
+                                : "(none)"
+                        );
+                    } else {
+                        log.info("║   [WEAK MOBILITY - No state, fresh start]");
+                    }
+                    log.info(
+                        "╚══════════════════════════════════════════════════════════════╝"
+                    );
                 }
             }
         );
@@ -317,12 +387,9 @@ public class WorkerNodeService {
                     Map<String, Object> data = (Map<String, Object>) payload;
                     String codeId = (String) data.get("codeId");
 
-                    log.info("=== EXECUTE COMMAND RECEIVED ===");
-                    log.info("  Code ID: {}", codeId);
-
                     CodePackage codePackage = receivedCodePackages.get(codeId);
                     if (codePackage == null) {
-                        log.error("  Code package not found: {}", codeId);
+                        log.error("Code package not found: {}", codeId);
                         sendExecutionResult(
                             codeId,
                             null,
@@ -332,9 +399,77 @@ public class WorkerNodeService {
                         return;
                     }
 
-                    log.info("  Executing: {}", codePackage.getName());
-                    log.info("  Code:\n{}", codePackage.getCode());
-                    log.info("================================");
+                    // ========== LOG TRƯỚC KHI THỰC THI ==========
+                    log.info(
+                        "╔══════════════════════════════════════════════════════════════╗"
+                    );
+                    log.info(
+                        "║            COORDINATOR DISPATCH - BEFORE EXECUTION           ║"
+                    );
+                    log.info(
+                        "╠══════════════════════════════════════════════════════════════╣"
+                    );
+                    log.info("║ Code ID    : {}", codeId);
+                    log.info("║ Code Name  : {}", codePackage.getName());
+                    log.info("║ Entry Point: {}", codePackage.getEntryPoint());
+                    log.info("║ Node       : {}", nodeId);
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    log.info("║ CODE PACKAGE:");
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    String[] codeLines = codePackage.getCode().split("\n");
+                    for (int i = 0; i < codeLines.length; i++) {
+                        log.info(
+                            "║ {} │ {}",
+                            String.format("%3d", i + 1),
+                            codeLines[i]
+                        );
+                    }
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    log.info("║ STATE BEFORE EXECUTION:");
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    if (codePackage.getState() != null) {
+                        CodePackage.CodeState state = codePackage.getState();
+                        log.info(
+                            "║   Execution Point: {}",
+                            state.getExecutionPoint()
+                        );
+                        log.info("║   Variables:");
+                        if (
+                            state.getVariables() != null &&
+                            !state.getVariables().isEmpty()
+                        ) {
+                            for (Map.Entry<String, Object> entry : state
+                                .getVariables()
+                                .entrySet()) {
+                                log.info(
+                                    "║     - {} = {}",
+                                    entry.getKey(),
+                                    entry.getValue()
+                                );
+                            }
+                        } else {
+                            log.info("║     (no variables)");
+                        }
+                        log.info(
+                            "║   Previous Output: {}",
+                            state.getOutput() != null
+                                ? state.getOutput()
+                                : "(none)"
+                        );
+                    } else {
+                        log.info("║   (no state - fresh execution)");
+                    }
+                    log.info(
+                        "╚══════════════════════════════════════════════════════════════╝"
+                    );
 
                     // Thực sự execute code bằng CodeExecutorService
                     try {
@@ -342,7 +477,9 @@ public class WorkerNodeService {
 
                         if (codePackage.getState() != null) {
                             // Strong mobility - execute với state đã có
-                            log.info("Executing with restored state...");
+                            log.info(
+                                ">>> Executing with RESTORED STATE (Strong Mobility)..."
+                            );
                             result = codeExecutorService
                                 .executeWithState(
                                     codeId,
@@ -353,32 +490,106 @@ public class WorkerNodeService {
                                 .get(); // Block để lấy kết quả
                         } else {
                             // Weak mobility - execute từ đầu
-                            log.info("Executing from scratch...");
+                            log.info(
+                                ">>> Executing from SCRATCH (Weak Mobility)..."
+                            );
                             result = codeExecutorService
                                 .execute(codeId, codePackage.getCode(), nodeId)
                                 .get(); // Block để lấy kết quả
                         }
 
-                        log.info("=== EXECUTION RESULT ===");
-                        log.info("  Status: {}", result.getStatus());
-                        log.info("  Result: {}", result.getResult());
+                        // ========== LOG SAU KHI THỰC THI ==========
+                        log.info(
+                            "╔══════════════════════════════════════════════════════════════╗"
+                        );
+                        log.info(
+                            "║            COORDINATOR DISPATCH - AFTER EXECUTION            ║"
+                        );
+                        log.info(
+                            "╠══════════════════════════════════════════════════════════════╣"
+                        );
+                        log.info("║ Code ID    : {}", codeId);
+                        log.info("║ Status     : {}", result.getStatus());
+                        log.info(
+                            "║ Exec Time  : {}ms",
+                            result.getExecutionTime()
+                        );
+                        log.info(
+                            "╠──────────────────────────────────────────────────────────────╣"
+                        );
+                        log.info("║ EXECUTION RESULT:");
+                        log.info(
+                            "╠──────────────────────────────────────────────────────────────╣"
+                        );
+                        log.info("║   Return Value: {}", result.getResult());
+                        if (
+                            result.getError() != null &&
+                            !result.getError().isEmpty()
+                        ) {
+                            log.error("║   Error: {}", result.getError());
+                        }
+                        log.info(
+                            "╠──────────────────────────────────────────────────────────────╣"
+                        );
+                        log.info("║ CONSOLE OUTPUT:");
+                        log.info(
+                            "╠──────────────────────────────────────────────────────────────╣"
+                        );
                         if (
                             result.getConsoleOutput() != null &&
                             !result.getConsoleOutput().isEmpty()
                         ) {
-                            log.info(
-                                "  Console Output:\n{}",
-                                result.getConsoleOutput()
-                            );
-                        }
-                        if (result.getError() != null) {
-                            log.error("  Error: {}", result.getError());
+                            String[] outputLines = result
+                                .getConsoleOutput()
+                                .split("\n");
+                            for (String line : outputLines) {
+                                log.info("║   > {}", line);
+                            }
+                        } else {
+                            log.info("║   (no console output)");
                         }
                         log.info(
-                            "  Execution Time: {}ms",
-                            result.getExecutionTime()
+                            "╠──────────────────────────────────────────────────────────────╣"
                         );
-                        log.info("========================");
+                        log.info("║ STATE AFTER EXECUTION:");
+                        log.info(
+                            "╠──────────────────────────────────────────────────────────────╣"
+                        );
+                        CodePackage.CodeState stateAfter =
+                            codeExecutorService.getState(codeId);
+                        if (stateAfter != null) {
+                            log.info("║   Variables:");
+                            if (
+                                stateAfter.getVariables() != null &&
+                                !stateAfter.getVariables().isEmpty()
+                            ) {
+                                for (Map.Entry<
+                                    String,
+                                    Object
+                                > entry : stateAfter
+                                    .getVariables()
+                                    .entrySet()) {
+                                    log.info(
+                                        "║     - {} = {}",
+                                        entry.getKey(),
+                                        entry.getValue()
+                                    );
+                                }
+                            } else {
+                                log.info("║     (no variables captured)");
+                            }
+                            log.info(
+                                "║   Output: {}",
+                                stateAfter.getOutput() != null
+                                    ? stateAfter.getOutput()
+                                    : "(none)"
+                            );
+                        } else {
+                            log.info("║   (no state captured)");
+                        }
+                        log.info(
+                            "╚══════════════════════════════════════════════════════════════╝"
+                        );
 
                         // Gửi kết quả về Coordinator
                         sendExecutionResult(
@@ -388,7 +599,21 @@ public class WorkerNodeService {
                             result.getConsoleOutput()
                         );
                     } catch (Exception e) {
-                        log.error("Execution failed: {}", e.getMessage(), e);
+                        log.error(
+                            "╔══════════════════════════════════════════════════════════════╗"
+                        );
+                        log.error(
+                            "║                    EXECUTION FAILED                          ║"
+                        );
+                        log.error(
+                            "╠══════════════════════════════════════════════════════════════╣"
+                        );
+                        log.error("║ Code ID: {}", codeId);
+                        log.error("║ Error  : {}", e.getMessage());
+                        log.error(
+                            "╚══════════════════════════════════════════════════════════════╝",
+                            e
+                        );
                         sendExecutionResult(codeId, null, e.getMessage(), null);
                     }
                 }
@@ -430,24 +655,77 @@ public class WorkerNodeService {
                     Map<String, Object> data = (Map<String, Object>) payload;
                     String codeId = (String) data.get("codeId");
 
-                    log.info("=== CAPTURE STATE COMMAND ===");
-                    log.info("  Code ID: {}", codeId);
-
                     // Lấy state thực từ CodeExecutorService
                     CodePackage.CodeState realState =
                         codeExecutorService.getState(codeId);
 
+                    // ========== LOG CAPTURE STATE ==========
+                    log.info(
+                        "╔══════════════════════════════════════════════════════════════╗"
+                    );
+                    log.info(
+                        "║         CAPTURE STATE COMMAND FROM COORDINATOR               ║"
+                    );
+                    log.info(
+                        "╠══════════════════════════════════════════════════════════════╣"
+                    );
+                    log.info("║ Code ID    : {}", codeId);
+                    log.info("║ Source Node: {}", nodeId);
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+                    log.info("║ CAPTURED STATE (to be sent to target):");
+                    log.info(
+                        "╠──────────────────────────────────────────────────────────────╣"
+                    );
+
                     if (realState != null) {
-                        log.info("  Variables: {}", realState.getVariables());
-                        log.info("  Output: {}", realState.getOutput());
+                        log.info(
+                            "║   Execution Point: {}",
+                            realState.getExecutionPoint()
+                        );
+                        log.info("║   Variables:");
+                        if (
+                            realState.getVariables() != null &&
+                            !realState.getVariables().isEmpty()
+                        ) {
+                            for (Map.Entry<String, Object> entry : realState
+                                .getVariables()
+                                .entrySet()) {
+                                log.info(
+                                    "║     - {} = {} ({})",
+                                    entry.getKey(),
+                                    entry.getValue(),
+                                    entry.getValue() != null
+                                        ? entry
+                                              .getValue()
+                                              .getClass()
+                                              .getSimpleName()
+                                        : "null"
+                                );
+                            }
+                        } else {
+                            log.info("║     (no variables)");
+                        }
+                        log.info(
+                            "║   Console Output: {}",
+                            realState.getOutput() != null
+                                ? realState.getOutput()
+                                : "(none)"
+                        );
+                        log.info(
+                            "╚══════════════════════════════════════════════════════════════╝"
+                        );
 
                         // Gửi state thực về Coordinator
                         sendCapturedState(codeId, realState);
                     } else {
-                        log.warn(
-                            "  No execution context found for code: {}",
-                            codeId
+                        log.warn("║   [WARNING] No execution context found!");
+                        log.warn("║   Sending empty state...");
+                        log.info(
+                            "╚══════════════════════════════════════════════════════════════╝"
                         );
+
                         // Gửi empty state
                         sendCapturedState(
                             codeId,
@@ -458,7 +736,6 @@ public class WorkerNodeService {
                                 .build()
                         );
                     }
-                    log.info("=============================");
                 }
             }
         );

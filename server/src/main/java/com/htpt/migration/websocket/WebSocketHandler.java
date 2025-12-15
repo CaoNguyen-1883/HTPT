@@ -1,9 +1,11 @@
 package com.htpt.migration.websocket;
 
+import com.htpt.migration.model.CodePackage;
 import com.htpt.migration.model.Node;
 import com.htpt.migration.model.NodeMetrics;
 import com.htpt.migration.service.CoordinatorService;
 import com.htpt.migration.service.LogBroadcastService;
+import com.htpt.migration.service.MigrationService;
 import java.time.Instant;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ public class WebSocketHandler {
     private final CoordinatorService coordinatorService;
     private final SimpMessagingTemplate messagingTemplate;
     private final LogBroadcastService logService;
+    private final MigrationService migrationService;
 
     // Node đăng ký
     @MessageMapping("/node/register")
@@ -223,7 +226,15 @@ public class WebSocketHandler {
             )
         );
 
-        // Broadcast để MigrationService có thể nhận và sử dụng
+        // Lưu state vào MigrationService để sử dụng trong Strong migration
+        CodePackage.CodeState state = CodePackage.CodeState.builder()
+            .variables(variables)
+            .executionPoint(executionPoint)
+            .output(output)
+            .build();
+        migrationService.saveCapturedState(codeId, state);
+
+        // Broadcast để frontend biết
         messagingTemplate.convertAndSend(
             "/topic/state/" + codeId,
             Map.of(
