@@ -1,0 +1,199 @@
+.node-metrics {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.metrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.metrics-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 20px;
+}
+
+.node-selector {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.metrics-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.metrics-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  text-align: center;
+}
+
+.metric-card .metric-label {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-card .metric-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.metric-card .metric-value.status-online {
+  color: #4caf50;
+}
+
+.metric-card .metric-value.status-offline {
+  color: #f44336;
+}
+
+.metric-card .metric-value.status-migrating {
+  color: #ff9800;
+}
+
+.metric-section {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.metric-title {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.metric-percent {
+  font-weight: 700;
+  font-size: 16px;
+  color: #666;
+}
+
+.metric-bar-container {
+  height: 12px;
+  background: #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.metric-bar {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.metric-bar.good {
+  background: linear-gradient(90deg, #4caf50, #66bb6a);
+}
+
+.metric-bar.warning {
+  background: linear-gradient(90deg, #ff9800, #ffa726);
+}
+
+.metric-bar.critical {
+  background: linear-gradient(90deg, #f44336, #ef5350);
+}
+
+.node-info {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.info-value {
+  color: #333;
+  font-size: 14px;
+  font-family: 'Courier New', monospace;
+}
+
+.health-indicator {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.health-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.health-status {
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.health-status.healthy {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.health-status.degraded {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.health-status.unhealthy {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.no-node {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 16px;
+}

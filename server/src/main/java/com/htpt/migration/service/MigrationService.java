@@ -5,6 +5,8 @@ import com.htpt.migration.dto.MigrationRequest;
 import com.htpt.migration.model.CodePackage;
 import com.htpt.migration.model.Migration;
 import com.htpt.migration.model.Node;
+import com.htpt.migration.repository.CodePackageRepository;
+import com.htpt.migration.repository.MigrationRepository;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -23,13 +25,12 @@ public class MigrationService {
     private final CoordinatorService coordinatorService;
     private final SimpMessagingTemplate messagingTemplate;
     private final LogBroadcastService logService;
+    private final MigrationRepository migrationRepository;
+    private final CodePackageRepository codePackageRepository;
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
 
-    private final Map<String, Migration> migrations = new ConcurrentHashMap<>();
-    private final Map<String, CodePackage> codePackages =
-        new ConcurrentHashMap<>();
-
     // Lưu state được capture từ worker (để sử dụng trong Strong migration)
+    // Keep in-memory for performance (state is temporary during migration)
     private final Map<String, CodePackage.CodeState> capturedStates =
         new ConcurrentHashMap<>();
 
@@ -40,7 +41,9 @@ public class MigrationService {
         // Nếu không chỉ định source, lấy từ code package
         String sourceNodeId = request.getSourceNodeId();
         if (sourceNodeId == null || sourceNodeId.isEmpty()) {
-            CodePackage code = codePackages.get(request.getCodeId());
+            CodePackage code = codePackageRepository
+                .findById(request.getCodeId())
+                .orElse(null);
             if (code != null) {
                 sourceNodeId = code.getCurrentNodeId();
             }
@@ -61,7 +64,7 @@ public class MigrationService {
             .startTime(Instant.now())
             .build();
 
-        migrations.put(migrationId, migration);
+        migrationRepository.save(migration);
 
         // Broadcast migration created
         broadcastMigrationUpdate(migration);
@@ -104,7 +107,9 @@ public class MigrationService {
 
             // Step 1: Lấy code từ source node
             updateProgress(migration, 10, "Preparing migration");
-            CodePackage codePackage = codePackages.get(migration.getCodeId());
+            CodePackage codePackage = codePackageRepository
+                .findById(migration.getCodeId())
+                .orElse(null);
 
             if (codePackage == null) {
                 throw new RuntimeException(
@@ -290,6 +295,7 @@ public class MigrationService {
         String message
     ) {
         migration.setProgress(progress);
+        migrationRepository.save(migration); // Save to database
 
         // Broadcast progress
         messagingTemplate.convertAndSend(
@@ -341,7 +347,7 @@ public class MigrationService {
             )
             .build();
 
-        codePackages.put(codeId, codePackage);
+        codePackageRepository.save(codePackage);
 
         // Notify the target node
         if (dto.getInitialNodeId() != null) {
@@ -358,19 +364,19 @@ public class MigrationService {
     }
 
     public Migration getMigration(String id) {
-        return migrations.get(id);
+        return migrationRepository.findById(id).orElse(null);
     }
 
     public Collection<Migration> getAllMigrations() {
-        return migrations.values();
+        return migrationRepository.findAll();
     }
 
     public CodePackage getCodePackage(String id) {
-        return codePackages.get(id);
+        return codePackageRepository.findById(id).orElse(null);
     }
 
     public Collection<CodePackage> getAllCodePackages() {
-        return codePackages.values();
+        return codePackageRepository.findAll();
     }
 
     /**
